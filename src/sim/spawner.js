@@ -47,8 +47,10 @@ export class Spawner {
     const prof = w.drivers[driverId].profile;
     const bodyType = this.rng.weighted(prof.bodyWeights);
     const body = BODY_TYPES[bodyType];
-     let v0 = lane.speedLimit * prof.v0Factor * (body.speedFactor ?? 1) * (1 + prof.v0Jitter * this.rng.norm());
+     const v0Ref = lane.speedLimit * prof.v0Factor * (body.speedFactor ?? 1);
+     let v0 = v0Ref * (1 + prof.v0Jitter * this.rng.norm());
     v0 = Math.max(v0, lane.speedLimit * 0.6);
+     const v0Jit = v0 / v0Ref;                                  // personal bias, carried into other lanes (§7.6)
     let vInit = v0 * 0.9;
     if (leader) {
       const gap = ld - (leader.length + body.length) * 0.5;
@@ -56,7 +58,7 @@ export class Spawner {
       const need = (prof.s0 + vInit * prof.T) * (tight ? 0.6 : 1.0);
       if (gap < need) return null;                          // thinning → platoons
     }
-    return w.spawnVehicle({ lane, driverId, bodyType, x: entryX, v: vInit, v0 });
+     return w.spawnVehicle({ lane, driverId, bodyType, x: entryX, v: vInit, v0, v0Jit });
   }
 
   chooseDriver(lane) {

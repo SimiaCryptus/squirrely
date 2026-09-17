@@ -30,8 +30,8 @@ export class Scoring {
   }
   hollow(secondsRemaining) { this.add(200 + 5 * Math.max(0, Math.floor(secondsRemaining)), 'hollow'); }
   complete() { this.add(1000, 'level'); }
-   /** Acorns delivered to the goal row (§11.7; smoke bombs are never banked). Returns the points awarded. */
-  bank(n) { const pts = Math.round(n * this.multiplier); this.add(pts, 'acorns'); return pts; }
+   /** An acorn eaten on the road (§11.7). Returns the points awarded. */
+   eat(base) { const pts = Math.round(base * this.multiplier); this.add(pts, 'acorn'); return pts; }
   chaos() { this.add(100, 'chaos'); }
   taunt() {
     if (this.tauntBoost <= 0) this.multiplier = Math.min(this.t.multCap, this.multiplier + 0.5);

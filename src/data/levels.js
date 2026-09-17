@@ -41,7 +41,10 @@ export const LEVELS = [
   { id: 'l11', name: 'Rush Hour Redux', timeLimit: 50, platoonChance: 0.35, modifiers: { rushHour: true },
     rows: [V(), L(1, 16, 26, A), L(1, 18, 28), L(1, 20, 24, C), L(1, 22, 20), M(), L(-1, 22, 20), L(-1, 20, 24, C), L(-1, 18, 28), L(-1, 16, 26, A), G()],
     mix: { white: 0.28, purple: 0.2, yellow: 0.16, green: 0.18, blue: 0.1, red: 0.08 } },
-  { id: 'l12', name: 'Everything Everywhere', timeLimit: 45, platoonChance: 0.35, modifiers: { night: true, rain: true },
+   { id: 'l12', name: 'Black Ice', timeLimit: 50, wreckLifetime: 18, platoonChance: 0.30, modifiers: { winter: true },
+     rows: [V(), L(1, 14, 24, A), L(1, 16, 24), L(1, 18, 20, C), M(), L(-1, 18, 20, C), L(-1, 16, 24), L(-1, 14, 24, A), G()],
+     mix: { white: 0.3, purple: 0.2, yellow: 0.18, green: 0.14, blue: 0.1, red: 0.08 } },
+   { id: 'l13', name: 'Everything Everywhere', timeLimit: 45, platoonChance: 0.35, modifiers: { night: true, rain: true },
     rows: [V(), S(), L(1, 16, 26, A), L(1, 18, 26), L(1, 20, 24, C), L(1, 23, 20), M(), L(-1, 23, 20), L(-1, 20, 24, C), L(-1, 18, 26), L(-1, 16, 26), L(-1, 14, 28, A), S(), G()],
     mix: { white: 0.28, purple: 0.18, yellow: 0.16, green: 0.14, blue: 0.12, red: 0.12 } },
 ];
@@ -64,4 +67,29 @@ export function endlessLevel(n) {
     id: `endless-${n}`, name: `Endless · Crossing ${n}`, timeLimit: 45, platoonChance: 0.3, endless: true,
     rows, mix: { white: 0.28, purple: 0.2, yellow: 0.16, green: 0.14, blue: 0.12, red: 0.10 },
   };
+}
+/**
+  * Custom game (settings menu, SPEC §13.5): symmetric carriageways built from the custom-game settings.
+  * Lane limits step up toward the median (multispeed traffic); density ramps per crossing like endless mode.
+  */
+export function customLevel(c, n = 1) {
+   const k = 1 + (c.densityRamp / 100) * (n - 1);
+   const each = Math.max(1, Math.round(c.lanesEach));
+   const dens = (i) => Math.max(1, Math.round(c.density * k * (1 - 0.05 * i)));
+   const flags = (i) => (i === 0 ? A : i === each - 1 && each > 1 ? C : {});
+   const rows = [V()];
+   if (c.shoulders) rows.push(S());
+   for (let i = 0; i < each; i++) rows.push(L(1, c.baseSpeed + i * c.speedStep, dens(i), flags(i)));
+   rows.push(c.median ? M() : { type: 'curb' });
+   for (let i = each - 1; i >= 0; i--) rows.push(L(-1, c.baseSpeed + i * c.speedStep, dens(i), flags(i)));
+   if (c.shoulders) rows.push(S());
+   rows.push(G());
+   const modifiers = {};
+   for (const m of ['night', 'rain', 'winter', 'rushHour']) if (c[m]) modifiers[m] = true;
+   const mix = {};
+   for (const id in c.mix) if (c.mix[id] > 0) mix[id] = c.mix[id];
+   return {
+     id: `custom-${n}`, name: `Custom · Crossing ${n}`, timeLimit: c.timeLimit, platoonChance: c.platoonChance, custom: true,
+     rows, mix, modifiers,
+   };
 }

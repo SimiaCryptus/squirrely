@@ -25,7 +25,8 @@ export class World {
     this.seed = seed >>> 0;
     this.modifiers = level.modifiers ?? {};
     this.rng = makeRng(this.seed);
-    this.road = new Road(level.rows, tuning, this.modifiers.rushHour ? 0.8 : 1);
+     const mods = this.modifiers;
+     this.road = new Road(level.rows, tuning, (mods.rushHour ? 0.8 : 1) * (mods.winter ? 0.85 : 1), mods.winter ? tuning.winterTraction : 1);
     this.vehicles = []; this.pool = []; this._sorted = [];
     this.nextId = 1; this.time = 0; this.stepCount = 0;
     this.player = new Player(this.road, tuning);
@@ -78,13 +79,14 @@ export class World {
 
   drive(v, dt) {
     const drv = this.drivers[v.driverId], tn = this.tuning;
-    const eff = drv.params ? drv.params(v, dt, this.ctx) : drv.profile;
+     let eff = drv.params ? drv.params(v, dt, this.ctx) : drv.profile;
     v.eff = eff;
     v.signals.headlightFlash = Math.max(0, v.signals.headlightFlash - dt);
     v.hornTimer = Math.max(0, v.hornTimer - dt);
     v.lcCooldown = Math.max(0, v.lcCooldown - dt);
 
     const P = this.perception.sense(v, eff, dt);                       // a. sensors
+     eff = this.frustrate(v, eff, P, dt); v.eff = eff;                  // a'. temper behind a slow leader (multispeed traffic, §7.6)
     let aLong = P.leader
       ? idmAccel(eff, v.v, v.v0, P.leader.s, v.v - P.leader.veh.v)
       : idmAccel(eff, v.v, v.v0, Infinity, 0);
@@ -95,13 +97,17 @@ export class World {
       const aP = idmAccel(eff, v.v, v.v0, Math.max(pl.gap - 0.5, 0.1), v.v - pl.vAlong);
       aLong = Math.min(aLong, aP);
     }
-    // a lit smoke bomb is a roadside spectacle: everyone but Purple eases off to gawk (§11.7)
+     // a lit smoke bomb blocks the road (§11.7): traffic approaching it in the plume's lanes stops short of it and waits,
+     // everyone else in sight eases off to gawk. Purple never notices the plume and drives straight into whoever stopped.
     if (v.driverId !== 'purple') {
+       const R = tn.smokeRadius;
       for (const s of this.items.smokes) {
-        const ahead = v.dir * (s.x - v.x);
-        if (ahead > -6 && ahead < tn.smokeDistract && Math.abs(s.z - v.z) < 14) {
+         const ahead = v.dir * (s.x - v.x), side = Math.abs(s.z - v.z);
+         if (ahead > 0 && ahead < tn.smokeStopRange && side < R + tn.smokeStopWidth) {
+           const gap = Math.max(ahead - R - v.length * 0.5, 0.1);        // the plume edge is a standing obstacle
+           aLong = Math.min(aLong, idmAccel(eff, v.v, v.v0, gap, v.v));
+         } else if (ahead > -6 && ahead < tn.smokeDistract && side < 14) {
           aLong = Math.min(aLong, idmAccel(eff, v.v, v.v0 * tn.smokeSlow, Infinity, 0));
-          break;
         }
       }
     }
@@ -161,6 +167,27 @@ export class World {
     v.signals.brake = v.aCmd < -1.5;
     if (intent.horn) this.honk(v);
   }
+   /**
+    * Multispeed traffic (§7.6): a driver stuck behind someone slower than it wants to go loses its temper at its own
+    * `impatience`. Temper shortens the headway and the lane-change threshold, costs politeness and bends the safety
+    * criterion — White and Purple never sour, Red boils in seconds. Returns the (possibly re-scratched) effective params.
+    */
+   frustrate(v, eff, P, dt) {
+     const L = P.leader;
+     const stuck = L && L.veh.state !== 'wrecked' && L.s < 30 && L.veh.v < 0.8 * v.v0 && v.v < 0.9 * v.v0;
+     v.frustration = stuck && eff.impatience > 0
+       ? Math.min(1, v.frustration + eff.impatience * dt)
+       : Math.max(0, v.frustration - 0.2 * dt);
+     const f = v.frustration;
+     if (f < 0.01) return eff;
+     if (eff !== v.effScratch) { Object.assign(v.effScratch, eff); eff = v.effScratch; }   // params() drivers already work in the scratch
+     eff.T *= 1 - 0.45 * f; eff.s0 *= 1 - 0.35 * f; eff.lcThreshold *= 1 - 0.8 * f;
+     eff.p -= 0.4 * f; eff.bSafe += 2 * f;
+     if (f > 0.7 && L && L.s < 12 && (this.time % 1.5) < 0.25) v.signals.headlightFlash = Math.max(v.signals.headlightFlash, 0.2);
+     if (f >= 1 && L && L.s < 8 && v.rng() < 0.4 * dt) this.honk(v);
+     return eff;
+   }
+
 
   beginLaneChange(v, lane, emergency) {
     if (lane === v.lane) return;
@@ -168,6 +195,10 @@ export class World {
     v.state = emergency ? 'evading' : 'changing';
     v.lcTimer = 0; v.lcCooldown = v.eff.lcCooldown; v.lcPending = null;
     v.signals.indicator = Math.sign(lane.zCenter - v.lcFrom.zCenter);
+     // multispeed traffic (§7.6): the new lane's limit becomes the reference — by as much as this driver cares about limits
+     const ideal = lane.speedLimit * v.profile.v0Factor * v.speedFactor * v.v0Jit;
+     v.v0Base += (ideal - v.v0Base) * v.eff.laneSpeedAdopt;
+     v.v0 = v.v0Base;
     this.events.emit('lanechange', { vehicle: v, from: v.lcFrom, to: lane, emergency });
   }
 
@@ -176,12 +207,12 @@ export class World {
     if (v.rng() < v.eff.hornChance) { v.hornTimer = 1.5; this.events.emit('horn', { vehicle: v }); }
   }
 
-  spawnVehicle({ lane, driverId, bodyType, x, v, v0 }) {
+   spawnVehicle({ lane, driverId, bodyType, x, v, v0, v0Jit = 1 }) {
     const veh = this.pool.pop() ?? new Vehicle(this.tuning);
     const id = this.nextId++;
     const drv = this.drivers[driverId];
     veh.reset({
-      id, driverId, profile: drv.profile, body: BODY_TYPES[bodyType], bodyType, lane, x, v, v0,
+       id, driverId, profile: drv.profile, body: BODY_TYPES[bodyType], bodyType, lane, x, v, v0, v0Jit,
       rng: makeRng(splitmix32(this.seed ^ Math.imul(id, 0x9e3779b9))), time: this.time,
     });
     if (drv.init) drv.init(veh);
@@ -262,7 +293,7 @@ export class World {
       const row = this.road.rowAt(p.z);
       if (row) {
         if (row.index > p.furthestRow) { p.furthestRow = row.index; this.scoring.advance(); }
-        if (row.goal) { this.items.bank(); this.tryHollow(); }
+         if (row.goal) this.tryHollow();
       }
     }
     this.nearMiss();
@@ -318,8 +349,8 @@ export class World {
   }
 
   respawnAfterGoal() {
-     const p = this.player, smokes = p.mouth.filter((k) => k === 'smoke');   // smoke bombs are never banked: they ride along
-     p.reset(); p.mouth.push(...smokes);
+     const p = this.player, mouth = p.mouth.slice();               // smoke bombs ride along to the next crossing
+     p.reset(); p.mouth.push(...mouth);
      this.timer = this.timeLimit; this.slowMos = 0;
   }
 

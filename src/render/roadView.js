@@ -1,19 +1,21 @@
 import * as THREE from 'three';
 
 const ROW_COLORS = { verge: 0x4d8a3c, shoulder: 0x6f6f6a, lane: 0x4b4d55, median: 0x4d8a3c, curb: 0xc9c465 };
+const WINTER_COLORS = { verge: 0xe6ebf0, shoulder: 0xb4b9be, lane: 0x585c66, median: 0xe6ebf0, curb: 0xbdbdb5 };
 
-/** Road rows, lane markings, goal trees / hollows (SPEC §16.2). */
+/** Road rows, lane markings, goal trees / hollows (SPEC §16.2). Winter swaps the palette for snow (§13.4). */
 export class RoadView {
-  constructor(scene, road, tuning) {
+   constructor(scene, road, tuning, modifiers = {}) {
+     const winter = !!modifiers.winter, colors = winter ? WINTER_COLORS : ROW_COLORS;
     this.group = new THREE.Group();
     scene.add(this.group);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 300), new THREE.MeshLambertMaterial({ color: 0x2f5d2a }));
+     const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 300), new THREE.MeshLambertMaterial({ color: winter ? 0xdde3e8 : 0x2f5d2a }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.05, road.zMin / 2); ground.receiveShadow = true;
     this.group.add(ground);
 
     for (const row of road.rows) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(260, row.depth), new THREE.MeshLambertMaterial({ color: ROW_COLORS[row.type] }));
+       const m = new THREE.Mesh(new THREE.PlaneGeometry(260, row.depth), new THREE.MeshLambertMaterial({ color: colors[row.type] }));
       m.rotation.x = -Math.PI / 2; m.position.set(0, 0, row.zCenter); m.receiveShadow = true;
       this.group.add(m);
     }
@@ -50,7 +52,7 @@ export class RoadView {
       for (const x of tuning.hollowXs) {
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 2.6, 8), new THREE.MeshLambertMaterial({ color: 0x6b4a2b }));
         trunk.position.set(x, 1.3, goal.zCenter - 0.6); trunk.castShadow = true;
-        const crown = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), new THREE.MeshLambertMaterial({ color: 0x3f8f3f }));
+         const crown = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), new THREE.MeshLambertMaterial({ color: winter ? 0x8fb2a0 : 0x3f8f3f }));
         crown.position.set(x, 3.3, goal.zCenter - 0.6); crown.castShadow = true;
         const hole = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 8), new THREE.MeshLambertMaterial({ color: 0x1a1008 }));
         hole.position.set(x, 1.4, goal.zCenter + 0.05);

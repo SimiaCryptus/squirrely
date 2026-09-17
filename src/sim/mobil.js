@@ -12,6 +12,8 @@ function accel(v, leader, s) {
 export function evaluateLaneChange(world, v, eff, P) {
   const per = world.perception;
   const aOld = P.leader ? accel(v, P.leader.veh, P.leader.s) : accel(v, null, Infinity);
+   // multispeed traffic (§7.6): how far this lane's limit is from the speed the driver actually wants
+   const misOld = Math.abs(v.v0 - v.lane.speedLimit);
   let best = null, bestInc = eff.lcThreshold;
 
   for (const lane of v.lane.neighbors) {
@@ -43,7 +45,9 @@ export function evaluateLaneChange(world, v, eff, P) {
       dOld = aF0New - aF0Old;
     }
 
-    const incentive = (aSelfNew - aOld) + eff.p * (dNew + dOld);
+     // speedSeek: drift toward the lane whose limit matches one's own pace (fast drivers left, slow ones right)
+     const misNew = Math.abs(v.v0 - lane.speedLimit);
+     const incentive = (aSelfNew - aOld) + eff.p * (dNew + dOld) + eff.speedSeek * (misOld - misNew) * 0.1;
     if (incentive > bestInc) { bestInc = incentive; best = lane; }
   }
   return best;

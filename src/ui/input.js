@@ -3,14 +3,14 @@ const KEYS = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
   Space: 'dash', KeyT: 'taunt', ShiftLeft: 'crouch', ShiftRight: 'crouch',
   KeyE: 'drop', KeyQ: 'drop',
-  Escape: 'pause', KeyP: 'pause', Backquote: 'debug',
+   Escape: 'pause', KeyP: 'pause', Backquote: 'debug', KeyV: 'view',
 };
 const EDGE = ['up', 'down', 'left', 'right', 'dash', 'taunt', 'drop'];
 
 /** Keyboard / gamepad / touch → PlayerIntent, sampled once per sim step (SPEC §17.3). Hops are edge-triggered. */
 export class Input {
-  constructor(canvas, { onPause, onDebug } = {}) {
-    this.onPause = onPause; this.onDebug = onDebug;
+   constructor(canvas, { onPause, onDebug, onView } = {}) {
+     this.onPause = onPause; this.onDebug = onDebug; this.onView = onView;
     this.held = new Set(); this.pressed = new Set();
     this.touchCrouch = false; this.padCrouch = false; this.padPrev = {};
     this.intent = { up: false, down: false, left: false, right: false, dash: false, taunt: false, crouch: false, drop: false };
@@ -22,6 +22,7 @@ export class Input {
       if (e.repeat) return;
       if (a === 'pause') { this.onPause?.(); return; }
       if (a === 'debug') { this.onDebug?.(); return; }
+       if (a === 'view') { this.onView?.(); return; }
       this.held.add(a); this.pressed.add(a);
     });
     window.addEventListener('keyup', (e) => { const a = KEYS[e.code]; if (a) this.held.delete(a); });

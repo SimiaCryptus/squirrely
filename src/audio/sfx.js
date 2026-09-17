@@ -76,12 +76,7 @@ export class Sfx {
        if (kind === 'smoke') this.tone(700, 0.12, { type: 'triangle', gain: 0.09, f1: 420 });   // heavy "thunk"
       else this.tone(900, 0.08, { type: 'triangle', gain: 0.09, f1: 1500 });
     });
-    events.on('item:drop', () => this.tone(500, 0.06, { type: 'triangle', gain: 0.06, f1: 300 }));
     events.on('smoke:lit', () => { this.noise(0.7, { gain: 0.25, cutoff: 1600 }); this.tone(1400, 0.5, { type: 'sine', gain: 0.05, f1: 200 }); });
-     events.on('acorn:bank', ({ acorns }) => {
-       const n = Math.max(1, acorns);
-      for (let i = 0; i < n; i++) this.tone(660 + i * 130, 0.12, { type: 'triangle', gain: 0.1, at: i * 0.1 });
-    });
     events.on('player:death', ({ cause }) => {
       if (cause === 'timer') { this.tone(300, 0.4, { type: 'square', gain: 0.1, f1: 80 }); return; }
       this.noise(0.25, { gain: 0.35, cutoff: 500 });

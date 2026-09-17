@@ -30,11 +30,12 @@ export class PlayerView {
     this.tail.position.set(0, 0.42, 0.26);
     this.tail.rotation.x = -0.35;
 
-     // whatever is in the mouth (acorn or smoke bomb) — grows when carrying two, darkens when a smoke bomb is aboard
-    this.held = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), new THREE.MeshLambertMaterial({ color: 0xa8692e }));
+     // the smoke bomb(s) in the mouth — grows when carrying two (acorns are eaten on the spot, §11.7)
+     this.held = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), new THREE.MeshLambertMaterial({ color: 0x2a2d33 }));
     this.held.position.set(0, 0.32, -0.42);
 
     for (const m of [body, chest, head, earL, earR, eyeL, eyeR, this.tail, this.held]) { m.castShadow = true; this.mesh.add(m); }
+     this.hidden = false;                                         // 1st-Squirrel view: you cannot see yourself
   }
 
   update(p, alpha, time) {
@@ -47,15 +48,14 @@ export class PlayerView {
     if (p.state === 'squashed') { sy = 0.12; sxz = 1.5; }
     if (p.state === 'goal') { const k = clamp(p.goalTimer / 0.8, 0, 1); sy *= k; sxz *= k; }
     this.mesh.scale.set(sxz, sy, sxz);
-    this.group.visible = !(p.state === 'goal' && p.goalTimer <= 0.05);
+     this.group.visible = !this.hidden && !(p.state === 'goal' && p.goalTimer <= 0.05);
 
     const hopping = p.state === 'hopping' || p.state === 'nudged';
     this.mesh.rotation.x = hopping ? -0.35 * Math.sin(Math.PI * clamp(p.t / p.dur, 0, 1)) : 0;
     this.mesh.rotation.z = p.tauntAnim > 0 ? Math.sin(time * 40) * 0.25 : 0;
     this.tail.rotation.z = Math.sin(time * (hopping ? 18 : 5)) * 0.18;
-    const held = p.mouth ? p.mouth.length : 0;
+     const held = p.mouth.length;
     this.held.visible = held > 0;
     this.held.scale.setScalar(held > 1 ? 1.4 : 1);
-     if (held > 0) this.held.material.color.setHex(p.mouth.includes('smoke') ? 0x2a2d33 : 0xa8692e);
   }
 }

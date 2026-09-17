@@ -1,10 +1,14 @@
 export const ROW_DEPTH = { verge: 3.0, shoulder: 2.0, lane: 3.5, median: 3.0, curb: 0.5 };
 
-/** Rows stacked along -Z from z = 0 (start verge) toward the goal. Lanes carry traffic along X. */
+/**
+  * Rows stacked along -Z from z = 0 (start verge) toward the goal. Lanes carry traffic along X.
+  * `traction` is the surface grip (1 = dry, less on a winter road, §13.4) — vehicles read it while integrating.
+  */
 export class Road {
-  constructor(rowDefs, tuning, speedScale = 1) {
+   constructor(rowDefs, tuning, speedScale = 1, traction = 1) {
     this.rows = [];
     this.lanes = [];
+     this.traction = traction;
     let z = 0;
     rowDefs.forEach((def, i) => {
       const depth = def.depth ?? ROW_DEPTH[def.type];

@@ -1,8 +1,8 @@
 /**
-  * Acorns & smoke bombs (SPEC §11.7). Pure sim: items lie on lane rows on the squirrel's 2.5 m lateral grid,
-  * one in five is a smoke bomb, the mouth holds `mouthCapacity` items, the goal row banks the acorns only
-  * (smoke bombs cannot be banked — they can only be dropped), and a dropped smoke bomb lights itself into a
-  * plume that occludes sight lines and slows gawking drivers.
+ * Acorns & smoke bombs (SPEC §11.7). Pure sim: items lie on lane rows on the squirrel's 2.5 m lateral grid, one in
+ * five is a smoke bomb. Acorns are eaten the moment the squirrel stands on them (points + stamina, §11.8); smoke
+ * bombs are carried (up to `mouthCapacity`) and dropped, where they light into a plume that occludes sight lines,
+ * halts the traffic approaching it and slows the gawkers in the other lanes.
  */
 export class Items {
   constructor(world, rng) {
@@ -33,16 +33,18 @@ export class Items {
       if (this.list.length < tn.itemMax) this.spawn();
     }
 
-    // pickup: standing (not mid-hop) on top of an item with a free mouth slot
-    if (!w.warm && w.status === 'playing' && p.alive && !p.hopping && p.mouth.length < tn.mouthCapacity) {
+    // pickup: standing (not mid-hop) on top of an item. Acorns go straight down the hatch; smoke bombs need a free mouth slot.
+    if (!w.warm && w.status === 'playing' && p.alive && !p.hopping) {
       for (let i = 0; i < this.list.length; i++) {
         const it = this.list[i];
-        if (Math.abs(it.x - p.x) < tn.pickupRadius && Math.abs(it.z - p.z) < tn.pickupRadius) {
-          this.list.splice(i, 1);
-          p.mouth.push(it.kind);
-          w.events.emit('item:pickup', { kind: it.kind, x: it.x, z: it.z, held: p.mouth.length });
-          break;
-        }
+        if (Math.abs(it.x - p.x) >= tn.pickupRadius || Math.abs(it.z - p.z) >= tn.pickupRadius) continue;
+        if (it.kind === 'smoke' && p.mouth.length >= tn.mouthCapacity) continue;
+        this.list.splice(i, 1);
+        let points = 0;
+        if (it.kind === 'acorn') { p.eat(tn.staminaAcorn); points = w.scoring.eat(tn.acornPoints); }
+        else p.mouth.push('smoke');
+        w.events.emit('item:pickup', { kind: it.kind, x: it.x, z: it.z, held: p.mouth.length, points });
+        break;
       }
     }
   }
@@ -53,40 +55,20 @@ export class Items {
     const lane = this.rng.pick(lanes);
     const n = Math.floor(tn.itemXRange / tn.lateralHop);
     const x = (this.rng.int(2 * n + 1) - n) * tn.lateralHop;             // on the squirrel's lateral grid
-     const kind = this.rng() < tn.smokeChance ? 'smoke' : 'acorn';
+    const kind = this.rng() < tn.smokeChance ? 'smoke' : 'acorn';
     for (const it of this.list) if (Math.abs(it.x - x) < 1 && Math.abs(it.z - lane.zCenter) < 1) return;
     const it = { id: this.nextId++, kind, x, z: lane.zCenter, row: lane.row.index, timer: tn.itemLifetime };
     this.list.push(it);
     w.events.emit('item:spawn', { item: it });
   }
 
-  /** Player drop intent: light a smoke bomb if carrying one, otherwise put an acorn back on the road. */
+  /** Player drop intent: light the smoke bomb in the mouth (nothing else is ever carried). */
   drop() {
     const w = this.world, p = w.player, tn = w.tuning;
     if (w.status !== 'playing' || !p.alive || p.hopping || !p.mouth.length) return false;
-    const si = p.mouth.indexOf('smoke');
-    if (si >= 0) {
-      p.mouth.splice(si, 1);
-      this.smokes.push({ x: p.x, z: p.z, timer: tn.smokeTime, total: tn.smokeTime });
-      w.events.emit('smoke:lit', { x: p.x, z: p.z });
-      return true;
-    }
-    const kind = p.mouth.pop();
-    const row = w.road.rowAt(p.z);
-    this.list.push({ id: this.nextId++, kind, x: p.x, z: p.z, row: row ? row.index : 0, timer: tn.itemLifetime });
-    w.events.emit('item:drop', { kind, x: p.x, z: p.z });
+    p.mouth.pop();
+    this.smokes.push({ x: p.x, z: p.z, timer: tn.smokeTime, total: tn.smokeTime });
+    w.events.emit('smoke:lit', { x: p.x, z: p.z });
     return true;
-  }
-
-   /** Landing on the goal row banks the acorns in the mouth; smoke bombs stay put (drop-only). */
-  bank() {
-    const w = this.world, p = w.player, tn = w.tuning;
-    if (!p.mouth.length) return;
-     let acorns = 0, k = 0;
-     for (const kind of p.mouth) { if (kind === 'acorn') acorns++; else p.mouth[k++] = kind; }
-     p.mouth.length = k;
-     if (!acorns) return;
-     const points = w.scoring.bank(acorns * tn.acornPoints);
-     w.events.emit('acorn:bank', { acorns, points });
   }
 }

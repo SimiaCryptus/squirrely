@@ -9,7 +9,11 @@ function hopFromIntent(intent) {
   return null;
 }
 
-/** Squirrel state machine (SPEC §11). Collision position is continuous mid-hop. */
+/**
+ * Squirrel state machine (SPEC §11). Collision position is continuous mid-hop.
+ * Stamina (§11.8) is the hop-rate budget: every move drains it, holding still refills it, acorns refill it fast,
+ * and the cooldown after a landing stretches as it runs out. A dash needs the legs for it or is refused.
+ */
 export class Player {
   constructor(road, tuning) {
     this.road = road;
@@ -29,34 +33,42 @@ export class Player {
     this.tauntAnim = 0; this.tauntCooldown = 0; this.tauntFired = false;
     this.queued = null; this.queueTimer = 0;
     this.furthestRow = 0; this.justLanded = false;
-    this.mouth = [];                                            // held items: 'acorn' | 'smoke' (§11.7)
-     this.trendDx = 0; this.trendDz = 0; this.trendTimer = 0;   // last hop vector; drivers extrapolate it (§8.2)
+    this.mouth = [];                                            // smoke bombs carried (§11.7); acorns are eaten on the spot
+    this.stamina = 1;                                           // 0..1 (§11.8)
+    this.trendDx = 0; this.trendDz = 0; this.trendTimer = 0;   // last hop vector; drivers extrapolate it (§8.2)
     this.deathTimer = 0; this.goalTimer = 0; this.squashedBy = null; this.cause = null;
   }
 
   get alive() { return this.state !== 'squashed' && this.state !== 'goal'; }
   get crouched() { return this.state === 'crouch' || this.state === 'standing'; }
-   get hopping() { return this.state === 'hopping' || this.state === 'nudged'; }
+  get hopping() { return this.state === 'hopping' || this.state === 'nudged'; }
+  get exhausted() { return this.stamina <= 0.001; }
 
   step(dt, intent) {
+    const tn = this.tuning;
     this.prevX = this.x; this.prevZ = this.z; this.prevY = this.y;
     this.tauntFired = false;
     this.graceTimer = Math.max(0, this.graceTimer - dt);
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.dashCooldown = Math.max(0, this.dashCooldown - dt);
-     this.trendTimer = Math.max(0, this.trendTimer - dt);
+    this.trendTimer = Math.max(0, this.trendTimer - dt);
     this.tauntAnim = Math.max(0, this.tauntAnim - dt);
     this.tauntCooldown = Math.max(0, this.tauntCooldown - dt);
     if (this.queued) { this.queueTimer -= dt; if (this.queueTimer <= 0) this.queued = null; }
 
+    // stamina recovers only while the squirrel holds still; crouching is a proper rest
+    if (this.state === 'crouch') this.stamina = Math.min(1, this.stamina + tn.staminaRegen * tn.staminaCrouchBoost * dt);
+    else if (this.state === 'idle' || this.state === 'standing') this.stamina = Math.min(1, this.stamina + tn.staminaRegen * dt);
+
     const hop = hopFromIntent(intent);
-    if (hop) { this.queued = hop; this.queueTimer = this.tuning.inputBuffer; }
+    if (hop) { this.queued = hop; this.queueTimer = tn.inputBuffer; }
 
     switch (this.state) {
       case 'idle':
         if (intent.crouch) { this.state = 'crouch'; this.vx = this.vz = 0; break; }
         if (intent.taunt && this.tauntCooldown <= 0) {
           this.tauntAnim = 0.4; this.tauntCooldown = 1.0; this.tauntFired = true;
+          this.spend(tn.staminaTaunt);
         }
         if (this.cooldown <= 0 && this.queued && this.tauntAnim <= 0) {
           const q = this.queued; this.queued = null; this.tryHop(q);
@@ -67,7 +79,7 @@ export class Player {
         this.advanceHop(dt);
         break;
       case 'crouch':
-        if (!intent.crouch) { this.state = 'standing'; this.standTimer = this.tuning.standTime; }
+        if (!intent.crouch) { this.state = 'standing'; this.standTimer = tn.standTime; }
         break;
       case 'standing':
         this.standTimer -= dt;
@@ -80,12 +92,12 @@ export class Player {
 
   tryHop(kind) {
     const tn = this.tuning, rows = this.road.rows;
-    let tx = this.x, tz = this.z, dur = tn.hopTime, arc = tn.hopArc;
+    let tx = this.x, tz = this.z, dur = tn.hopTime, arc = tn.hopArc, cost = tn.staminaHop;
     if (kind === 'dash') {
-      if (this.dashCooldown > 0) return;
+      if (this.dashCooldown > 0 || this.stamina < tn.staminaDash) return;   // a dash needs the legs for it
       const r = Math.min(rows.length - 1, this.row + 2);
       if (r === this.row) return;
-      tz = rows[r].zCenter; dur = tn.dashTime; arc = tn.hopArc * 1.3;
+      tz = rows[r].zCenter; dur = tn.dashTime; arc = tn.hopArc * 1.3; cost = tn.staminaDash;
       this.dashCooldown = tn.dashCooldown; this.facing = 0;
     } else if (kind === 'up') {
       if (this.row >= rows.length - 1) return;
@@ -94,23 +106,27 @@ export class Player {
       if (this.row <= 0) return;
       tz = rows[this.row - 1].zCenter; this.facing = Math.PI;
     } else if (kind === 'left') {
-      tx = Math.max(-tn.playerXLimit, this.x - tn.lateralHop); dur = tn.lateralHopTime;
+      tx = Math.max(-tn.playerXLimit, this.x - tn.lateralHop); dur = tn.lateralHopTime; cost = tn.staminaLateral;
       if (tx === this.x) return;
       this.facing = Math.PI / 2;
     } else if (kind === 'right') {
-      tx = Math.min(tn.playerXLimit, this.x + tn.lateralHop); dur = tn.lateralHopTime;
+      tx = Math.min(tn.playerXLimit, this.x + tn.lateralHop); dur = tn.lateralHopTime; cost = tn.staminaLateral;
       if (tx === this.x) return;
       this.facing = -Math.PI / 2;
     }
     this.startHop(tx, tz, dur, arc, 'hopping');
+    this.spend(cost);
   }
+
+  spend(cost) { this.stamina = Math.max(0, this.stamina - cost); }
+  eat(amount) { this.stamina = Math.min(1, this.stamina + amount); }
 
   startHop(tx, tz, dur, arc, state) {
     this.x0 = this.x; this.z0 = this.z; this.x1 = tx; this.z1 = tz;
     this.dur = dur; this.arc = arc; this.t = 0; this.state = state;
     this.vx = (tx - this.x) / dur; this.vz = (tz - this.z) / dur;
-     this.trendDx = clamp(tx - this.x, -3.5, 3.5); this.trendDz = clamp(tz - this.z, -3.5, 3.5);
-     this.trendTimer = 0.6;
+    this.trendDx = clamp(tx - this.x, -3.5, 3.5); this.trendDz = clamp(tz - this.z, -3.5, 3.5);
+    this.trendTimer = 0.6;
     this.graceTimer = 0;                   // collidable throughout the hop
   }
 
@@ -126,7 +142,9 @@ export class Player {
   land() {
     this.x = this.x1; this.z = this.z1; this.y = 0; this.vx = this.vz = 0;
     this.state = 'idle';
-    this.cooldown = this.tuning.hopCooldown;
+    // the hop rate is a stamina budget: fresh legs hop back-to-back, tired ones need a breather
+    const tired = 1 - this.stamina;
+    this.cooldown = this.tuning.hopCooldown + this.tuning.staminaCooldownMax * tired * tired;
     this.graceTimer = this.tuning.grace;
     const row = this.road.rowAt(this.z);
     if (row) this.row = row.index;

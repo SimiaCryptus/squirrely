@@ -39,6 +39,7 @@ export class Vehicle {
     this.id = o.id; this.driverId = o.driverId; this.profile = o.profile; this.eff = o.profile;
     this.bodyType = o.bodyType; this.length = b.length; this.width = b.width; this.height = b.height; this.mass = b.mass;
      this.agility = b.agility ?? 1;
+     this.speedFactor = b.speedFactor ?? 1; this.v0Jit = o.v0Jit ?? 1;   // personal speed bias, kept across lanes (§7.6)
     this.ext = 0.5 * Math.sqrt(b.length * b.length + b.width * b.width);
     this.lane = o.lane; this.dir = o.lane.dir;
     this.x = o.x; this.v = o.v; this.a = 0; this.aCmd = 0; this.v0 = o.v0; this.v0Base = o.v0;
@@ -46,7 +47,8 @@ export class Vehicle {
     this.prevX = this.x; this.prevZ = this.z; this.prevHeading = this.heading;
     this.state = 'cruise'; this.mode = 'SCAN';
     this.lcTimer = 0; this.lcCooldown = 1.0; this.lcFrom = null; this.lcPending = null; this.lcPendingTimer = 0;
-    this.rage = 0; this.panic = 0; this.lockTimer = 0; this.lockCooldown = 0; this.trackTimer = 0; this.startled = false;
+     this.rage = 0; this.panic = 0; this.lockTimer = 0; this.lockCooldown = 0; this.trackTimer = 0; this.startled = false;
+     this.frustration = 0;                                        // temper behind a slower leader (§7.6)
     this.wander = 0; this.lateralOffset = 0; this.flinchTimer = 0; this.flinched = false; this.swerving = false;
     this.stabTimer = 0; this.stabAccel = 0; this.rollTimer = 0.25; this.triggerTimer = 0;
     this.noiseTimer = 0; this.brakeNoiseVal = 0; this.hornTimer = 0; this.nearMissed = false; this.lastLeaderId = -1;
@@ -71,13 +73,16 @@ export class Vehicle {
   integrate(dt, road) {
     if (this.state === 'wrecked') return this.integrateWreck(dt, road);
     const eff = this.eff;
+     const tr = road.traction;                                    // 1 on dry tarmac, less on ice (§13.4)
     this.a = this.aCmd;
     this.v = Math.max(0, this.v + this.a * dt);
     this.x += this.dir * this.v * dt;
 
-    if (eff.steerNoise > 0) {
-       const wMax = 0.4 * Math.min(this.agility, 1.5);            // motorcycles weave inside the lane
+     if (eff.steerNoise > 0 || tr < 1) {
+       const wMax = 0.4 * Math.min(this.agility, 1.5) + (1 - tr) * 0.5;   // motorcycles weave inside the lane
        this.wander += eff.steerNoise * this.agility * this.rng.norm() * Math.sqrt(dt);
+       // hard braking on ice: the tail steps out
+       if (tr < 1 && this.aCmd < -0.6 * eff.bMax) this.wander += (1 - tr) * 1.2 * this.rng.norm() * Math.sqrt(dt);
       this.wander -= this.wander * 0.5 * dt;
        this.wander = clamp(this.wander, -wMax, wMax);
     }
@@ -88,11 +93,12 @@ export class Vehicle {
 
     const emergency = this.state === 'evading';
      // a car only moves sideways by rolling forward: cap lateral speed by forward speed (kills the low-speed "spin")
-      const vzMax = Math.min(emergency ? eff.vzMaxEmergency : eff.vzMax, Math.max(0.35, this.v * 0.3)) * this.agility;
+     // reduced traction slows every lateral move and blunts the steering response
+     const vzMax = Math.min(emergency ? eff.vzMaxEmergency : eff.vzMax, Math.max(0.35, this.v * 0.3)) * this.agility * (0.5 + 0.5 * tr);
     const targetZ = this.lane.zCenter + this.lateralOffset + this.wander;
     const dz = targetZ - this.z;
     const desired = clamp(dz * (emergency ? 4 : 2.5), -vzMax, vzMax);
-     this.vz = approach(this.vz, desired, (emergency ? 12 : 6) * this.agility * dt);
+     this.vz = approach(this.vz, desired, (emergency ? 12 : 6) * this.agility * tr * dt);
     this.z += this.vz * dt;
 
     if (this.state === 'changing' || this.state === 'evading') {
@@ -109,7 +115,7 @@ export class Vehicle {
   integrateWreck(dt, road) {
     const sp = Math.sqrt(this.wx * this.wx + this.wz * this.wz);
     if (sp > 0.01) {
-      const ns = Math.max(0, sp - 6 * dt);
+       const ns = Math.max(0, sp - 6 * road.traction * dt);       // wrecks slide a long way on ice
       this.wx *= ns / sp; this.wz *= ns / sp;
     }
     this.x += this.wx * dt; this.z += this.wz * dt;

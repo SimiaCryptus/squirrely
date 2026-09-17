@@ -8,8 +8,9 @@ export class Hud {
     this.el = {
       score: $('score'), mult: $('mult'), lives: $('lives'), timer: $('timer'), level: $('level'),
        hollows: $('hollows'), legend: $('legend'), card: $('card'), mouth: $('mouth'), hint: $('hint'),
+       stamina: $('stamina'), staminaFill: $('stamina-fill'),
     };
-     this.el.hint.innerHTML = '💣 Carrying a smoke bomb — press <kbd>E</kbd> (long‑press on touch) to drop and light it. It can\'t be banked.';
+     this.el.hint.innerHTML = '💣 Carrying a smoke bomb — press <kbd>E</kbd> (long‑press on touch) to drop and light it. Traffic stops short of the plume.';
     this.chips = {};
     for (const id in profiles) {
       const p = profiles[id];
@@ -40,15 +41,12 @@ export class Hud {
       else if (driverId) { const p = this.profiles[driverId]; this.card(`${p.icon} ${p.label} got you.`, this.rules[driverId], p.colorHex, 3); }
     });
     events.on('nearmiss', () => { this.multHot = 0.35; });
-    events.on('item:pickup', ({ kind }) => {
+     events.on('item:pickup', ({ kind, points }) => {
       if (kind === 'smoke' && this.markSeen('tip:smoke')) {
-         this.card('Smoke bomb!', 'Press E to drop it — it lights itself. Drivers slow down to gawk and Red loses sight of you. It cannot be banked.', 0x9aa0a8, 4);
+         this.card('Smoke bomb!', 'Press E to drop it — it lights itself. Traffic stops short of the plume, gawkers slow down and Red loses sight of you.', 0x9aa0a8, 4);
       } else if (kind === 'acorn' && this.markSeen('tip:acorn')) {
-        this.card('Acorn!', 'Carry up to two. Bring them to the far side to bank the points.', 0xc97a3a, 3);
+         this.card('Acorn!', `+${points} and a full belly — acorns restore stamina, and stamina is how fast you may hop.`, 0xc97a3a, 3.5);
       }
-    });
-     events.on('acorn:bank', ({ acorns, points }) => {
-       this.card(`Banked ${acorns} acorn${acorns > 1 ? 's' : ''}!`, `+${points}`, 0xc97a3a, 1.5);
     });
     events.on('hollow', ({ remaining }) => {
       if (remaining > 0) this.card('Hollow filled!', `${remaining} to go — back to the start.`, 0xc97a3a, 1.5);
@@ -79,8 +77,10 @@ export class Hud {
     el.mult.classList.toggle('hot', this.multHot > 0);
     el.lives.textContent = '🐿️'.repeat(Math.max(0, world.lives));
     const cap = this.tuning.mouthCapacity;
-    el.mouth.textContent = p.mouth.map((k) => (k === 'smoke' ? '💣' : '🌰')).join('') + '◌'.repeat(Math.max(0, cap - p.mouth.length));
-     el.hint.classList.toggle('hidden', !(p.alive && p.mouth.includes('smoke')));   // how to use the smoke bomb
+     el.mouth.textContent = '💣'.repeat(p.mouth.length) + '◌'.repeat(Math.max(0, cap - p.mouth.length));
+     el.hint.classList.toggle('hidden', !(p.alive && p.mouth.length > 0));   // how to use the smoke bomb
+     el.staminaFill.style.width = `${Math.round(p.stamina * 100)}%`;        // stamina bar (§11.8)
+     el.stamina.classList.toggle('low', p.stamina < 0.25);
     el.timer.textContent = String(Math.ceil(world.timer));
     el.timer.classList.toggle('low', world.timer < 10);
     el.level.textContent = this.debug
