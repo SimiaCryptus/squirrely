@@ -10,17 +10,21 @@ export class Spawner {
     this.platoonChance = lv.platoonChance ?? 0.2;
     this.densityScale = lv.modifiers?.rushHour ? 1.4 : 1;
     this.lanes = world.road.lanes.map((lane) => ({
-      lane, phase: rng() * Math.PI * 2, period: 25 + 15 * rng(), platoon: 0,
+      lane,
+      phase: rng() * Math.PI * 2,
+      period: 25 + 15 * rng(),
+      platoon: 0,
     }));
   }
 
   step(dt) {
-    const w = this.world, t = w.time;
+    const w = this.world,
+      t = w.time;
     for (const s of this.lanes) {
       const lane = s.lane;
       if (s.platoon > 0) {
         if (this.trySpawn(lane, true, null)) s.platoon--;
-        else if (this.rng() < 0.2 * dt) s.platoon = 0;      // give up if the entry never clears
+        else if (this.rng() < 0.2 * dt) s.platoon = 0; // give up if the entry never clears
         continue;
       }
       const base = (lane.density * this.densityScale * lane.speedLimit) / 1000;
@@ -34,36 +38,46 @@ export class Spawner {
   }
 
   trySpawn(lane, tight, forcedDriver) {
-    const w = this.world, tn = w.tuning;
+    const w = this.world,
+      tn = w.tuning;
     const entryX = lane.dir > 0 ? tn.xMin - tn.spawnMargin : tn.xMax + tn.spawnMargin;
-    let leader = null, ld = Infinity;
+    let leader = null,
+      ld = Infinity;
     for (const o of w.vehicles) {
       if (o.lane !== lane && o.lcFrom !== lane) continue;
       const d = lane.dir * (o.x - entryX);
-      if (d >= 0 && d < ld) { ld = d; leader = o; }
+      if (d >= 0 && d < ld) {
+        ld = d;
+        leader = o;
+      }
     }
     const driverId = forcedDriver ?? this.chooseDriver(lane);
     if (!driverId) return null;
     const prof = w.drivers[driverId].profile;
     const bodyType = this.rng.weighted(prof.bodyWeights);
     const body = BODY_TYPES[bodyType];
-     const v0Ref = lane.speedLimit * prof.v0Factor * (body.speedFactor ?? 1);
-     let v0 = v0Ref * (1 + prof.v0Jitter * this.rng.norm());
+    const v0Ref = lane.speedLimit * prof.v0Factor * (body.speedFactor ?? 1);
+    let v0 = v0Ref * (1 + prof.v0Jitter * this.rng.norm());
     v0 = Math.max(v0, lane.speedLimit * 0.6);
-     const v0Jit = v0 / v0Ref;                                  // personal bias, carried into other lanes (§7.6)
+    const v0Jit = v0 / v0Ref; // personal bias, carried into other lanes (§7.6)
     let vInit = v0 * 0.9;
     if (leader) {
       const gap = ld - (leader.length + body.length) * 0.5;
       vInit = clamp(leader.v, v0 * 0.5, v0);
       const need = (prof.s0 + vInit * prof.T) * (tight ? 0.6 : 1.0);
-      if (gap < need) return null;                          // thinning → platoons
+      if (gap < need) return null; // thinning → platoons
     }
-     return w.spawnVehicle({ lane, driverId, bodyType, x: entryX, v: vInit, v0, v0Jit });
+    return w.spawnVehicle({ lane, driverId, bodyType, x: entryX, v: vInit, v0, v0Jit });
   }
 
   chooseDriver(lane) {
-    const w = this.world, mix = w.level.mix;
-    let total = 0, blues = 0, redsInLane = 0, whitesInLane = 0, inLane = 0;
+    const w = this.world,
+      mix = w.level.mix;
+    let total = 0,
+      blues = 0,
+      redsInLane = 0,
+      whitesInLane = 0,
+      inLane = 0;
     for (const o of w.vehicles) {
       total++;
       if (o.driverId === 'blue') blues++;
@@ -78,7 +92,7 @@ export class Spawner {
     for (const k in mix) {
       let wgt = mix[k];
       if (lane.chaos && (k === 'yellow' || k === 'green')) wgt *= 1.6;
-      if (k === 'blue' && total >= 6 && blues / total >= 0.30) wgt = 0;
+      if (k === 'blue' && total >= 6 && blues / total >= 0.3) wgt = 0;
       if (k === 'red' && redsInLane >= 2) wgt = 0;
       weights[k] = wgt;
     }

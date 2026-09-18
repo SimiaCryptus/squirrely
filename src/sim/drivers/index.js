@@ -14,11 +14,25 @@ export function createDriverRegistry(profiles, modifiers = {}) {
     const base = profiles[id];
     const p = { ...base, extras: { ...base.extras } };
     if (modifiers.night) p.detectRange *= 0.6;
-    if (modifiers.rain) { p.bMax *= 0.65; p.bComf *= 0.7; }
-     if (modifiers.winter) { p.bMax *= 0.55; p.bComf *= 0.6; p.aMax *= 0.75; p.detectRange *= 0.85; }   // ice: long stops, gentle throttle
+    if (modifiers.rain) {
+      p.bMax *= 0.65;
+      p.bComf *= 0.7;
+    }
+    if (modifiers.winter) {
+      p.bMax *= 0.55;
+      p.bComf *= 0.6;
+      p.aMax *= 0.75;
+      p.detectRange *= 0.85;
+    } // ice: long stops, gentle throttle
     const mod = MODULES[id];
     if (!mod) throw new Error(`No driver module registered for '${id}'`);
-    reg[id] = { id, profile: Object.freeze(p), tick: mod.tick, params: mod.params ?? null, init: mod.init ?? null };
+    reg[id] = {
+      id,
+      profile: Object.freeze(p),
+      tick: mod.tick,
+      params: mod.params ?? null,
+      init: mod.init ?? null,
+    };
   }
   return reg;
 }

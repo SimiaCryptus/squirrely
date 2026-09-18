@@ -7,18 +7,29 @@ import { deg2rad, lerp, lerpAngle } from '../core/math.js';
  */
 export class CameraRig {
   constructor(camera, tuning) {
-    this.camera = camera; this.tuning = tuning;
+    this.camera = camera;
+    this.tuning = tuning;
     this.mode = 'top';
-    this.camX = 0; this.h = 30; this.d = 20; this.lookZ = -10;
-    this.yaw = 0; this.eye = 0.4;
-    this.shakeT = 0; this.shakeA = 0; this.shakeEnabled = true;
-    this.sx = 0; this.sy = 0;
+    this.camX = 0;
+    this.h = 30;
+    this.d = 20;
+    this.lookZ = -10;
+    this.yaw = 0;
+    this.eye = 0.4;
+    this.shakeT = 0;
+    this.shakeA = 0;
+    this.shakeEnabled = true;
+    this.sx = 0;
+    this.sy = 0;
   }
 
-  get cfg() { return this.tuning.camera; }
+  get cfg() {
+    return this.tuning.camera;
+  }
 
   setup(road) {
-    const th = deg2rad(this.cfg.pitchDeg), ph = deg2rad(this.cfg.fov / 2);
+    const th = deg2rad(this.cfg.pitchDeg),
+      ph = deg2rad(this.cfg.fov / 2);
     const K = 1 / Math.tan(th - ph) - 1 / Math.tan(th + ph);
     const D = (road.depth + 10) / (Math.sin(th) * K);
     this.h = D * Math.sin(th);
@@ -26,7 +37,10 @@ export class CameraRig {
     this.lookZ = road.zMax + 5 - this.d + this.h / Math.tan(th + ph);
   }
 
-  snap(x, facing = 0) { this.camX = x; this.yaw = facing; }
+  snap(x, facing = 0) {
+    this.camX = x;
+    this.yaw = facing;
+  }
 
   shake(amount) {
     if (!this.shakeEnabled) return;
@@ -54,14 +68,18 @@ export class CameraRig {
   }
 
   updateFirst(p, alpha, dt) {
-    const x = lerp(p.prevX, p.x, alpha), z = lerp(p.prevZ, p.z, alpha), y = lerp(p.prevY, p.y, alpha);
+    const x = lerp(p.prevX, p.x, alpha),
+      z = lerp(p.prevZ, p.z, alpha),
+      y = lerp(p.prevY, p.y, alpha);
     const k = 1 - Math.exp(-dt / 0.07);
     this.yaw = lerpAngle(this.yaw, p.facing, k);
     const squashed = p.state === 'squashed';
     const eyeH = squashed ? 0.06 : p.crouched ? 0.2 : 0.4;
     this.eye += (eyeH - this.eye) * k;
-    const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);            // the squirrel model faces -Z at facing = 0
-    this.camX = x; this.lookZ = z;                                        // keeps the sun rig centred on the squirrel
+    const fx = -Math.sin(this.yaw),
+      fz = -Math.cos(this.yaw); // the squirrel model faces -Z at facing = 0
+    this.camX = x;
+    this.lookZ = z; // keeps the sun rig centred on the squirrel
     this.camera.position.set(x - fx * 0.12 + this.sx, y + this.eye + this.sy, z - fz * 0.12);
     this.camera.lookAt(x + fx * 6, y + this.eye + (squashed ? 1.5 : -0.9), z + fz * 6);
   }

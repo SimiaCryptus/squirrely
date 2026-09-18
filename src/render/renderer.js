@@ -13,7 +13,11 @@ export class Renderer {
   constructor(canvas, tuning) {
     this.tuning = tuning;
     this.graphics = { ...GRAPHICS_DEFAULTS };
-    this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.gl = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -26,10 +30,15 @@ export class Renderer {
     this.rig = new CameraRig(this.camera, tuning);
 
     this.hemi = new THREE.HemisphereLight(0xdfefff, 0x4a5a3a, 0.7);
-    this.sun = new THREE.DirectionalLight(0xfff1d6, 0.95);      // toned down so white bodies keep their shading
+    this.sun = new THREE.DirectionalLight(0xfff1d6, 0.95); // toned down so white bodies keep their shading
     this.sun.castShadow = true;
     const sc = this.sun.shadow.camera;
-    sc.left = -50; sc.right = 50; sc.top = 35; sc.bottom = -35; sc.near = 1; sc.far = 160;
+    sc.left = -50;
+    sc.right = 50;
+    sc.top = 35;
+    sc.bottom = -35;
+    sc.near = 1;
+    sc.far = 160;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0005;
     this.scene.add(this.hemi, this.sun, this.sun.target);
@@ -37,7 +46,8 @@ export class Renderer {
     this.vehicles = new VehicleView(this.scene);
     this.player = new PlayerView(this.scene);
     this.items = new ItemView(this.scene);
-    this.roadView = null; this.world = null;
+    this.roadView = null;
+    this.world = null;
     this.time = 0;
 
     this.resize();
@@ -45,7 +55,8 @@ export class Renderer {
   }
 
   resize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = window.innerWidth,
+      h = window.innerHeight;
     this.gl.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -57,7 +68,9 @@ export class Renderer {
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, g.pixelRatio));
     if (this.gl.shadowMap.enabled !== !!g.shadows) {
       this.gl.shadowMap.enabled = !!g.shadows;
-      this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+      this.scene.traverse((o) => {
+        if (o.material) o.material.needsUpdate = true;
+      });
     }
     this.rig.shakeEnabled = !!g.shake;
     if (this.world) this.rig.setup(this.world.road);
@@ -93,12 +106,15 @@ export class Renderer {
     this.vehicles.night = !!mods.night;
   }
 
-  shake(amount) { this.rig.shake(amount); }
+  shake(amount) {
+    this.rig.shake(amount);
+  }
 
   render(world, alpha, dt) {
     this.time += dt;
     this.rig.update(world.player, alpha, dt);
-    const cx = this.rig.camX, lz = this.rig.lookZ;
+    const cx = this.rig.camX,
+      lz = this.rig.lookZ;
     this.sun.position.set(cx + 25, 45, lz + 15);
     this.sun.target.position.set(cx, 0, lz);
     if (this.roadView) this.roadView.update(world);

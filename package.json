@@ -6,7 +6,7 @@
   "description": "Frogger-inspired traffic puzzle with color-coded driver personalities (IDM + MOBIL, three.js).",
   "scripts": {
     "start": "npx serve .",
-     "test": "node --test test/*.test.js",
+    "test": "node --test test/*.test.js",
     "headless": "node tools/headless.js --level l04 --seeds 20 --seconds 60"
   }
 }

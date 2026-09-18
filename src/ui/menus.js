@@ -16,18 +16,28 @@ export class Menus {
       this.el.appendChild(p);
     }
     const row = document.createElement('div');
-    row.style.display = 'flex'; row.style.gap = '12px'; row.style.flexWrap = 'wrap'; row.style.justifyContent = 'center';
+    row.style.display = 'flex';
+    row.style.gap = '12px';
+    row.style.flexWrap = 'wrap';
+    row.style.justifyContent = 'center';
     for (const b of buttons) {
       const btn = document.createElement('button');
       btn.textContent = b.label;
-      btn.addEventListener('click', () => { btn.blur(); b.onClick(); });
+      btn.addEventListener('click', () => {
+        btn.blur();
+        b.onClick();
+      });
       row.appendChild(btn);
     }
     this.el.appendChild(row);
     this.el.classList.remove('hidden');
   }
 
-  hide() { this.el.classList.add('hidden'); }
+  hide() {
+    this.el.classList.add('hidden');
+  }
 
-  get visible() { return !this.el.classList.contains('hidden'); }
+  get visible() {
+    return !this.el.classList.contains('hidden');
+  }
 }

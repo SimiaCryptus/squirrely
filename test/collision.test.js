@@ -21,7 +21,7 @@ test('rotated box clips a corner that an AABB test would miss', () => {
 });
 
 test('pointDistance is 0 inside and euclidean outside', () => {
-  const v = box(0, 0, Math.PI);          // westbound, same footprint
+  const v = box(0, 0, Math.PI); // westbound, same footprint
   assert.equal(pointDistance(v, 0, 0), 0);
   assert.equal(pointDistance(v, 2.3, 0.9), 0);
   assert.ok(Math.abs(pointDistance(v, 3.3, 0) - 1.0) < 1e-9);

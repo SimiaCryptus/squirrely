@@ -1,27 +1,43 @@
 export const ROW_DEPTH = { verge: 3.0, shoulder: 2.0, lane: 3.5, median: 3.0, curb: 0.5 };
 
 /**
-  * Rows stacked along -Z from z = 0 (start verge) toward the goal. Lanes carry traffic along X.
-  * `traction` is the surface grip (1 = dry, less on a winter road, §13.4) — vehicles read it while integrating.
-  */
+ * Rows stacked along -Z from z = 0 (start verge) toward the goal. Lanes carry traffic along X.
+ * `traction` is the surface grip (1 = dry, less on a winter road, §13.4) — vehicles read it while integrating.
+ */
 export class Road {
-   constructor(rowDefs, tuning, speedScale = 1, traction = 1) {
+  constructor(rowDefs, tuning, speedScale = 1, traction = 1) {
     this.rows = [];
     this.lanes = [];
-     this.traction = traction;
+    this.traction = traction;
     let z = 0;
     rowDefs.forEach((def, i) => {
       const depth = def.depth ?? ROW_DEPTH[def.type];
       const row = {
-        index: i, type: def.type, zMax: z, zMin: z - depth, zCenter: z - depth / 2, depth,
-        safe: def.type !== 'lane', goal: !!def.goal, hollows: def.hollows ?? 0, lane: null,
+        index: i,
+        type: def.type,
+        zMax: z,
+        zMin: z - depth,
+        zCenter: z - depth / 2,
+        depth,
+        safe: def.type !== 'lane',
+        goal: !!def.goal,
+        hollows: def.hollows ?? 0,
+        lane: null,
       };
       if (def.type === 'lane') {
         const lane = {
-          index: this.lanes.length, row, zCenter: row.zCenter, width: depth, dir: def.dir,
-          speedLimit: def.speedLimit * speedScale, density: def.density,
-          anchor: !!def.anchor, chaos: !!def.chaos,
-          xMin: tuning.xMin, xMax: tuning.xMax, neighbors: [],
+          index: this.lanes.length,
+          row,
+          zCenter: row.zCenter,
+          width: depth,
+          dir: def.dir,
+          speedLimit: def.speedLimit * speedScale,
+          density: def.density,
+          anchor: !!def.anchor,
+          chaos: !!def.chaos,
+          xMin: tuning.xMin,
+          xMax: tuning.xMax,
+          neighbors: [],
         };
         row.lane = lane;
         this.lanes.push(lane);
@@ -66,11 +82,15 @@ export class Road {
   }
 
   laneNearest(z, dir) {
-    let best = null, bd = Infinity;
+    let best = null,
+      bd = Infinity;
     for (const l of this.lanes) {
       if (l.dir !== dir) continue;
       const d = Math.abs(l.zCenter - z);
-      if (d < bd) { bd = d; best = l; }
+      if (d < bd) {
+        bd = d;
+        best = l;
+      }
     }
     return best;
   }

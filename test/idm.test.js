@@ -23,12 +23,17 @@ test('acceleration is clamped to [-bMax, aMax]', () => {
 });
 
 test('follower converges onto a constant-speed leader without negative speed', () => {
-  const dt = 1 / 120, vL = 12;
-  let x = 0, v = 20, xL = 40;
+  const dt = 1 / 120,
+    vL = 12;
+  let x = 0,
+    v = 20,
+    xL = 40;
   for (let i = 0; i < 120 * 60; i++) {
     const s = xL - x - 4.6;
     const a = idmAccel(P, v, 20, s, v - vL);
-    v = Math.max(0, v + a * dt); x += v * dt; xL += vL * dt;
+    v = Math.max(0, v + a * dt);
+    x += v * dt;
+    xL += vL * dt;
     assert.ok(v >= 0);
     assert.ok(s > 0, 'never collides');
   }

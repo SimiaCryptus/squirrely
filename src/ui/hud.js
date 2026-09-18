@@ -4,13 +4,25 @@ const $ = (id) => document.getElementById(id);
 /** DOM HUD: score, multiplier, lives, timer, hollows, driver legend, dossier / cause-of-death cards (SPEC §17.1). */
 export class Hud {
   constructor(profiles, rules, tuning) {
-    this.profiles = profiles; this.rules = rules; this.tuning = tuning;
+    this.profiles = profiles;
+    this.rules = rules;
+    this.tuning = tuning;
     this.el = {
-      score: $('score'), mult: $('mult'), lives: $('lives'), timer: $('timer'), level: $('level'),
-       hollows: $('hollows'), legend: $('legend'), card: $('card'), mouth: $('mouth'), hint: $('hint'),
-       stamina: $('stamina'), staminaFill: $('stamina-fill'),
+      score: $('score'),
+      mult: $('mult'),
+      lives: $('lives'),
+      timer: $('timer'),
+      level: $('level'),
+      hollows: $('hollows'),
+      legend: $('legend'),
+      card: $('card'),
+      mouth: $('mouth'),
+      hint: $('hint'),
+      stamina: $('stamina'),
+      staminaFill: $('stamina-fill'),
     };
-     this.el.hint.innerHTML = '💣 Carrying a smoke bomb — press <kbd>E</kbd> (long‑press on touch) to drop and light it. Traffic stops short of the plume.';
+    this.el.hint.innerHTML =
+      '💣 Carrying a smoke bomb — press <kbd>E</kbd> (long‑press on touch) to drop and light it. Traffic stops short of the plume.';
     this.chips = {};
     for (const id in profiles) {
       const p = profiles[id];
@@ -27,39 +39,68 @@ export class Hud {
       this.el.hollows.appendChild(d);
       return d;
     });
-    this.cardTimer = 0; this.multHot = 0; this.debug = false; this.label = '';
+    this.cardTimer = 0;
+    this.multHot = 0;
+    this.debug = false;
+    this.label = '';
     this.onScreen = new Set();
-    try { this.seen = new Set(JSON.parse(localStorage.getItem('squirrely.seen') || '[]')); } catch { this.seen = new Set(); }
+    try {
+      this.seen = new Set(JSON.parse(localStorage.getItem('squirrely.seen') || '[]'));
+    } catch {
+      this.seen = new Set();
+    }
   }
 
   bind(world, events, label) {
-    this.world = world; this.label = label;
+    this.world = world;
+    this.label = label;
     for (const id in this.chips) this.chips[id].classList.toggle('locked', !world.level.mix[id]);
-    this.el.card.classList.add('hidden'); this.cardTimer = 0;
+    this.el.card.classList.add('hidden');
+    this.cardTimer = 0;
     events.on('player:death', ({ driverId, cause }) => {
-      if (cause === 'timer') this.card('Out of time.', 'The clock is a driver too. Keep moving.', 0xf2c724, 2.5);
-      else if (driverId) { const p = this.profiles[driverId]; this.card(`${p.icon} ${p.label} got you.`, this.rules[driverId], p.colorHex, 3); }
+      if (cause === 'timer')
+        this.card('Out of time.', 'The clock is a driver too. Keep moving.', 0xf2c724, 2.5);
+      else if (driverId) {
+        const p = this.profiles[driverId];
+        this.card(`${p.icon} ${p.label} got you.`, this.rules[driverId], p.colorHex, 3);
+      }
     });
-    events.on('nearmiss', () => { this.multHot = 0.35; });
-     events.on('item:pickup', ({ kind, points }) => {
+    events.on('nearmiss', () => {
+      this.multHot = 0.35;
+    });
+    events.on('item:pickup', ({ kind, points }) => {
       if (kind === 'smoke' && this.markSeen('tip:smoke')) {
-         this.card('Smoke bomb!', 'Press E to drop it — it lights itself. Traffic stops short of the plume, gawkers slow down and Red loses sight of you.', 0x9aa0a8, 4);
+        this.card(
+          'Smoke bomb!',
+          'Press E to drop it — it lights itself. Traffic stops short of the plume, gawkers slow down and Red loses sight of you.',
+          0x9aa0a8,
+          4
+        );
       } else if (kind === 'acorn' && this.markSeen('tip:acorn')) {
-         this.card('Acorn!', `+${points} and a full belly — acorns restore stamina, and stamina is how fast you may hop.`, 0xc97a3a, 3.5);
+        this.card(
+          'Acorn!',
+          `+${points} and a full belly — acorns restore stamina, and stamina is how fast you may hop.`,
+          0xc97a3a,
+          3.5
+        );
       }
     });
     events.on('hollow', ({ remaining }) => {
-      if (remaining > 0) this.card('Hollow filled!', `${remaining} to go — back to the start.`, 0xc97a3a, 1.5);
+      if (remaining > 0)
+        this.card('Hollow filled!', `${remaining} to go — back to the start.`, 0xc97a3a, 1.5);
     });
   }
   /** Records a first-time tip; returns true if it had not been seen before. */
   markSeen(key) {
     if (this.seen.has(key)) return false;
     this.seen.add(key);
-    try { localStorage.setItem('squirrely.seen', JSON.stringify([...this.seen])); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('squirrely.seen', JSON.stringify([...this.seen]));
+    } catch {
+      /* ignore */
+    }
     return true;
   }
-
 
   card(title, sub, colorHex, seconds) {
     const c = this.el.card;
@@ -70,23 +111,27 @@ export class Hud {
   }
 
   update(world, dt) {
-    const s = world.scoring, p = world.player, el = this.el;
+    const s = world.scoring,
+      p = world.player,
+      el = this.el;
     el.score.textContent = String(s.score);
     el.mult.textContent = `×${s.multiplier.toFixed(1)}`;
     this.multHot = Math.max(0, this.multHot - dt);
     el.mult.classList.toggle('hot', this.multHot > 0);
     el.lives.textContent = '🐿️'.repeat(Math.max(0, world.lives));
     const cap = this.tuning.mouthCapacity;
-     el.mouth.textContent = '💣'.repeat(p.mouth.length) + '◌'.repeat(Math.max(0, cap - p.mouth.length));
-     el.hint.classList.toggle('hidden', !(p.alive && p.mouth.length > 0));   // how to use the smoke bomb
-     el.staminaFill.style.width = `${Math.round(p.stamina * 100)}%`;        // stamina bar (§11.8)
-     el.stamina.classList.toggle('low', p.stamina < 0.25);
+    el.mouth.textContent =
+      '💣'.repeat(p.mouth.length) + '◌'.repeat(Math.max(0, cap - p.mouth.length));
+    el.hint.classList.toggle('hidden', !(p.alive && p.mouth.length > 0)); // how to use the smoke bomb
+    el.staminaFill.style.width = `${Math.round(p.stamina * 100)}%`; // stamina bar (§11.8)
+    el.stamina.classList.toggle('low', p.stamina < 0.25);
     el.timer.textContent = String(Math.ceil(world.timer));
     el.timer.classList.toggle('low', world.timer < 10);
     el.level.textContent = this.debug
       ? `${this.label} · ${world.vehicles.length} veh · crashes ${world.stats.crashes} · swerves ${world.stats.swerves} · locks ${world.stats.locks} · seed ${world.seed}`
       : this.label;
-    for (let i = 0; i < this.hollowEls.length; i++) this.hollowEls[i].classList.toggle('filled', !!world.hollows[i]?.filled);
+    for (let i = 0; i < this.hollowEls.length; i++)
+      this.hollowEls[i].classList.toggle('filled', !!world.hollows[i]?.filled);
 
     const on = this.onScreen;
     on.clear();

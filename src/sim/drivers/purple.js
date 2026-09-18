@@ -6,11 +6,12 @@ export function init(v) {
 }
 
 export function tick(v, P, intent, ctx) {
-  const pl = P.player, eff = v.eff;
+  const pl = P.player,
+    eff = v.eff;
   const threat = pl.visible && pl.inPath && pl.gap > 0 && !pl.behind;
   if (threat && !v.flinched) {
-    intent.aLong = -eff.bMax;                                       // slam
-    const side = pl.z - v.z >= 0 ? -1 : 1;                          // partial swerve away
+    intent.aLong = -eff.bMax; // slam
+    const side = pl.z - v.z >= 0 ? -1 : 1; // partial swerve away
     v.lateralOffset = side * eff.extras.flinch;
     v.flinchTimer = 1.0;
     v.flinched = true;

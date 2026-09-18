@@ -9,7 +9,13 @@ import { World, EMPTY_INTENT } from '../src/sim/world.js';
 
 function run(seed, seconds, intentFn = () => EMPTY_INTENT) {
   const level = LEVELS[3];
-  const world = new World({ level, drivers: createDriverRegistry(DRIVERS, level.modifiers), tuning: TUNING, seed, events: new EventBus() });
+  const world = new World({
+    level,
+    drivers: createDriverRegistry(DRIVERS, level.modifiers),
+    tuning: TUNING,
+    seed,
+    events: new EventBus(),
+  });
   const hashes = [];
   const n = Math.round(seconds / TUNING.dt);
   for (let i = 0; i < n; i++) {
@@ -19,15 +25,22 @@ function run(seed, seconds, intentFn = () => EMPTY_INTENT) {
   return { world, hashes };
 }
 
-const scripted = (i) => (i % 240 === 0 ? { ...EMPTY_INTENT, up: true } : i % 240 === 120 ? { ...EMPTY_INTENT, taunt: true } : EMPTY_INTENT);
+const scripted = (i) =>
+  i % 240 === 0
+    ? { ...EMPTY_INTENT, up: true }
+    : i % 240 === 120
+      ? { ...EMPTY_INTENT, taunt: true }
+      : EMPTY_INTENT;
 
 test('same seed + same inputs ⇒ identical state hash at every 60th step', () => {
-  const a = run(1234, 20, scripted), b = run(1234, 20, scripted);
+  const a = run(1234, 20, scripted),
+    b = run(1234, 20, scripted);
   assert.deepEqual(a.hashes, b.hashes);
   assert.ok(a.world.vehicles.length > 0, 'traffic exists');
 });
 
 test('different seeds diverge', () => {
-  const a = run(1, 8), b = run(2, 8);
+  const a = run(1, 8),
+    b = run(2, 8);
   assert.notDeepEqual(a.hashes, b.hashes);
 });
