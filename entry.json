@@ -1,12 +1,13 @@
 {
-  "id": "squirrely",
-  "category": "game",
-  "section": "games",
-  "icon": "SQ",
-  "title": "Squirrely",
-  "href": "index.html",
-  "readme": "README.md",
-  "launchLabel": "Open Squirrely",
-  "video": "/videos/demo_squirrely.mp4",
-  "pitch": "A game about crossing the highway and filling tree hollows, with reactive personality-based traffic."
+    "id": "squirrely",
+    "title": "Squirrely",
+    "category": "game",
+    "href": "index.html",
+    "readme": "README.md",
+    "video": "/videos/demo_squirrely.mp4",
+    "order": 10,
+    "section": "games",
+    "icon": "SQ",
+    "launchLabel": "Open Squirrely",
+    "pitch": "A game about crossing the highway and filling tree hollows, with reactive personality-based traffic."
 }
